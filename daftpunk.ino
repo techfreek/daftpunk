@@ -55,16 +55,18 @@ FACTORYRESET_ENABLE       Perform a factory reset when running this sketch
                           central device won't be able to reconnect.
 -----------------------------------------------------------------------*/
 #define FACTORYRESET_ENABLE    0
-#define PIN                     6
-#define WIDTH                   15
-#define HEIGHT                  8
+#define PIN                    6
+#define WIDTH                  15
+#define HEIGHT                 8
+#define PIXELS                 (WIDTH * HEIGHT)
 
 // General speeds
-#define BRIGHTNESS              5
+#define BRIGHTNESS              10
+#define UINT16_MAX              65535
 
 // other settings
 #define SCANNER_SPEED           60
-#define TEXT_SPEED             150
+#define TEXT_SPEED             200
 #define EYE_SPEED              250
 
 // order of these matches the order returned through the app
@@ -118,7 +120,15 @@ String daftPunkStrs[] = {
     "harder",
     "faster",
     "stronger",
-    "better"
+    "better",
+    "Around the World",
+    "One More Time",
+    "Daft Punk",
+    "We're up all night to get lucky",
+    "Drag and drop it, zip, unzip it",
+    "Don't stop the dancing",
+    "Television, rules the nation",
+    "Celebration"
 };
 
 String partyStrs[] = {
@@ -127,6 +137,9 @@ String partyStrs[] = {
     "spooky",
     "spooky scary skeletons",
     "boo!",
+    "Lose yourself to dance",
+    "Music's got me feeling so free"
+    "Go cougs!"
 };
 
 enum daft_string {
@@ -134,36 +147,49 @@ enum daft_string {
     PARTY
 };
 
-// Fill the pixels one after the other with a color
-#if 0
-void colorWipe(int color, uint8_t wait) {
-    int curr_color = 0;
-    int leds = HEIGHT*WIDTH;
-    int pixel = 0;
-    for (uint16_t row = 0; row < HEIGHT; row++) {
-        for (uint16_t column = 0; column < WIDTH; column++) {
-            pixel++;
-            matrix.drawPixel(column, row, color * (float)((float)pixel / (float)leds));
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+    WheelPos = 255 - WheelPos;
+    if(WheelPos < 85) {
+        return matrix.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+    }
+    if(WheelPos < 170) {
+        WheelPos -= 85;
+        return matrix.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+    }
+    WheelPos -= 170;
+    return matrix.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+void rainbow() {
+    uint16_t i, j, pixel = 0;
+
+    matrix.fillScreen(OFF);
+    matrix.show();
+
+    for(j=1; j<120; j+=5) {
+        for(i=0; i<PIXELS; i++, pixel++) {
+            matrix.drawPixel((pixel % WIDTH) , (pixel / WIDTH) % HEIGHT, Wheel(((i * 2) + j) % 255));
             matrix.show();
-            delay(wait);
         }
     }
 }
-#endif
 
 void scanner() {
+    int pos = 0;
     matrix.fillScreen(0);
-    for(uint8_t pos = 0; pos < matrix.width(); pos++) {
-          matrix.fillScreen(OFF);
-          matrix.drawLine(pos, 0, pos, HEIGHT, RED);
-          matrix.show();
-          delay(SCANNER_SPEED);
+    for(pos = 0; pos < matrix.width(); pos++) {
+        matrix.fillScreen(OFF);
+        matrix.drawLine(pos, 0, pos, HEIGHT, RED);
+        matrix.show();
+        delay(SCANNER_SPEED);
     }
-    for(uint8_t pos = (matrix.width() - 1); pos > 0; pos--) {
-          matrix.fillScreen(OFF);
-          matrix.drawLine(pos, 0, pos, HEIGHT, RED);
-          matrix.show();
-          delay(SCANNER_SPEED);
+    for(pos = (matrix.width() - 1); pos >= 0; pos--) {
+        matrix.fillScreen(OFF);
+        matrix.drawLine(pos, 0, pos, HEIGHT, RED);
+        matrix.show();
+        delay(SCANNER_SPEED);
     }
     matrix.fillScreen(0);
     matrix.show();
@@ -249,36 +275,37 @@ void eyes(int dir) {
             blink = 2;
             break;
         case KEY_LEFT:
-            x_offset = -1;
+            x_offset = max(x_offset - 1, -1);
             break;
         case KEY_RIGHT:
-            x_offset = 1;
+            x_offset = min(x_offset + 1, 1);
             break;
         case KEY_NONE:
         default:
-            x_offset = 0;
             break;
     }
 
     if (blink == 0) {
         eye(0 + x_offset, false);
-        eye((matrix.width() / 2) + x_offset, false);
+        eye((matrix.width() / 2) + x_offset + 1, false);
     } else if (blink == 1) {
         // wink
         eye(0 + x_offset, false);
-        eye((matrix.width() / 2) + x_offset, true);
-        gdir = KEY_NONE;
+        eye((matrix.width() / 2) + x_offset + 1, true);
     } else {
         // blink
         eye(0 + x_offset, true);
-        eye((matrix.width() / 2) + x_offset, true);
-        gdir = KEY_NONE;
+        eye((matrix.width() / 2) + x_offset + 1, true);
     }
+    // clear the direction
+    gdir = KEY_NONE;
     matrix.show();
-    delay(EYE_SPEED);
+    delay(random(1, 4) * EYE_SPEED);
 }
 
 void setup() {
+    randomSeed(analogRead(0));
+
     matrix.begin();
     matrix.setBrightness(BRIGHTNESS);
     matrix.setTextColor(RED);
@@ -306,7 +333,6 @@ void setup() {
 
     /* Wait for connection */
     while(!ble.isConnected()) {
-        delay(500);
         scanner();
     }
 
@@ -353,11 +379,10 @@ void loop() {
             showStrings(PARTY);
             break;
         case KEY_4:
-#if 0
-            colorWipe(WHITE, 10);
+            //colorWipe(WHITE, 10);
+            rainbow();
             delay(500);
             break;
-#endif
         default:
             scanner();
             break;
