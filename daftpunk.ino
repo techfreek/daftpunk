@@ -65,8 +65,12 @@ FACTORYRESET_ENABLE       Perform a factory reset when running this sketch
 #define UINT16_MAX              65535
 
 // other settings
+#define NUM_ANIMATIONS           3
+#define SPIRAL_SPEED            70
+#define SPIRAL_OFFSET           15
+#define SPIRAL_LOOPS             4
 #define SCANNER_SPEED           60
-#define TEXT_SPEED             200
+#define TEXT_SPEED             150
 #define EYE_SPEED              250
 
 // order of these matches the order returned through the app
@@ -109,37 +113,33 @@ extern uint8_t packetbuffer[];
 ble_key gkey = KEY_NONE;
 ble_key gdir = KEY_NONE;
 
-// A small helper
-void error(String err) {
-    Serial.println(err);
-    while (1);
-}
-
-String daftPunkStrs[] = {
+#define NUM_DAFT_PUNK_STRS 12
+String daftPunkStrs[NUM_DAFT_PUNK_STRS] = {
     "technologic",
-    "harder",
-    "faster",
-    "stronger",
-    "better",
-    "Around the World",
+    "Harder Better Faster Stronger",
+    "Around the World Around the World",
     "One More Time",
     "Daft Punk",
+    "We're like the legend of the phoenix",
+    "We're gonna celebrate",
+    "Work it harder, make it better",
+    "Do it faster, makes us stronger",
+    "Music's got me feeling so free",
     "We're up all night to get lucky",
-    "Drag and drop it, zip, unzip it",
     "Don't stop the dancing",
-    "Television, rules the nation",
-    "Celebration"
 };
 
-String partyStrs[] = {
+#define NUM_PARTY_STRS 9
+String partyStrs[NUM_PARTY_STRS] = {
     "beer me",
-    "hey",
-    "spooky",
+    "halloween",
     "spooky scary skeletons",
     "boo!",
     "Lose yourself to dance",
-    "Music's got me feeling so free"
-    "Go cougs!"
+     "Music's got me feeling so free"
+    "Go cougs!",
+    "Fight fight for Washington State",
+    "Huck the fuskies",
 };
 
 enum daft_string {
@@ -168,38 +168,103 @@ void rainbow() {
     matrix.fillScreen(OFF);
     matrix.show();
 
-    for(j=1; j<120; j+=5) {
+    for(j=1; j<(PIXELS * 3); j++) {
         for(i=0; i<PIXELS; i++, pixel++) {
             matrix.drawPixel((pixel % WIDTH) , (pixel / WIDTH) % HEIGHT, Wheel(((i * 2) + j) % 255));
+            if (j == 1) {
+                matrix.show();
+            }
+        }
+        if (j > 1) {
             matrix.show();
         }
     }
+
+    // clear screen
+    for(pixel = (PIXELS - 1); pixel > 0; pixel--) {
+        matrix.drawPixel((pixel % WIDTH) , (pixel / WIDTH) % HEIGHT, OFF);
+        matrix.show();
+    }
+
+    matrix.fillScreen(OFF);
+    matrix.show();
+    delay(250);
 }
 
 void scanner() {
     int pos = 0;
-    matrix.fillScreen(0);
+
+    matrix.fillScreen(OFF);
     for(pos = 0; pos < matrix.width(); pos++) {
         matrix.fillScreen(OFF);
         matrix.drawLine(pos, 0, pos, HEIGHT, RED);
         matrix.show();
         delay(SCANNER_SPEED);
     }
+
     for(pos = (matrix.width() - 1); pos >= 0; pos--) {
         matrix.fillScreen(OFF);
         matrix.drawLine(pos, 0, pos, HEIGHT, RED);
         matrix.show();
         delay(SCANNER_SPEED);
     }
+
     matrix.fillScreen(0);
     matrix.show();
 }
+
+void spiral() {
+    int i = 0;
+    int pos = 0;
+    int color = 0;
+    bool last = false;
+    int hwidth = matrix.width() / 2;
+    int hheight = matrix.height() / 2;
+
+    matrix.fillScreen(OFF);
+    matrix.drawLine(hwidth, 0, hwidth, HEIGHT, Wheel(0));
+    matrix.show();
+
+    for(; i <= SPIRAL_LOOPS; i++) {
+        if (i == SPIRAL_LOOPS) {
+          last = true;
+        }
+
+        for(pos = 0; pos < hwidth; pos++) {
+          color = (color + SPIRAL_OFFSET) % 255;
+          matrix.drawLine(hwidth - pos, 0, hwidth + pos, HEIGHT, last ? OFF: Wheel(color));
+          matrix.show();
+          delay(SPIRAL_SPEED);
+     }
+
+      for(pos = hheight; pos >= -hheight; pos--) {
+          color = (color + SPIRAL_OFFSET) % 255;
+          matrix.drawLine(0, hheight - pos, WIDTH, hheight + pos, last ? OFF: Wheel(color));
+          matrix.show();
+          delay(SPIRAL_SPEED);
+      }
+
+      for(pos = 0; pos <= hwidth; pos++) {
+          color = (color + SPIRAL_OFFSET) % 255;
+          matrix.drawLine(pos, HEIGHT, WIDTH - pos, 0, last ? OFF: Wheel(color));
+          matrix.show();
+          delay(SPIRAL_SPEED);
+      }
+    }
+
+    delay(SPIRAL_SPEED);
+    matrix.fillScreen(0);
+    matrix.show();
+}
+
 
 void scrollText(String text) {
     int x = matrix.width();
 
     // Account for 6 pixel wide characters plus a space
     int length = (text.length() * 6) + matrix.width();
+
+    Serial.println("Scrolling " + String(text));
 
     matrix.setCursor(x, 0);
     matrix.print(text);
@@ -215,19 +280,16 @@ void scrollText(String text) {
 }
 
 void showStrings(int daft) {
-    uint8_t length = 0;
     uint8_t index = 0;
     String text;
 
     switch(daft) {
         case DAFT_PUNK:
-            length = sizeof(daftPunkStrs) / sizeof(daftPunkStrs[0]);
-            index = random(0, length);
+            index = random(0, NUM_DAFT_PUNK_STRS);
             text = daftPunkStrs[index];
             break;
         case PARTY:
-            length = sizeof(partyStrs) / sizeof(partyStrs[0]);
-            index = random(0, length);
+            index = random(0, NUM_PARTY_STRS);
             text = partyStrs[index];
             break;
     }
@@ -311,22 +373,21 @@ void setup() {
     matrix.setTextColor(RED);
     matrix.setTextWrap(false);
     matrix.setCursor(0, 0);
-    scanner();
 
     Serial.begin(115200);
     Serial.println("Initializing");
 
     if(!ble.begin(VERBOSE_MODE)) {
-        error(F("Couldn't find Bluefruit"));
+        Serial.println("Couldn't find Bluefruit");
     }
 
-    if (FACTORYRESET_ENABLE) {
+#if FACTORYRESET_ENABLE == 1
         /* Perform a factory reset to make sure everything is in a known state */
         Serial.println("Performing a factory reset: ");
         if(!ble.factoryReset()) {
-            error("Couldn't factory reset");
+            Serial.println("Couldn't factory reset");
         }
-    }
+#endif
 
     /* Disable command echo from Bluefruit */
     ble.echo(false);
@@ -340,10 +401,11 @@ void setup() {
 }
 
 void loop() {
+    int animation = 0;
     uint8_t buttnum = 0;
     boolean pressed = false;
 
-    if (ble.available()) {
+   if (ble.available()) {
         uint8_t len = readPacket(&ble, BLE_READPACKET_TIMEOUT);
         if (len == 0) return;
 
@@ -352,6 +414,7 @@ void loop() {
                 //buttons
                 buttnum = packetbuffer[2] - '0';
                 pressed = packetbuffer[3] - '0';
+                Serial.println("button: " + String(buttnum));
 
                 if (buttnum >= KEY_UP) {
                   gdir = (int)buttnum;
@@ -379,8 +442,19 @@ void loop() {
             showStrings(PARTY);
             break;
         case KEY_4:
-            //colorWipe(WHITE, 10);
-            rainbow();
+            animation = random(0, NUM_ANIMATIONS);
+            switch(animation) {
+                case 0:
+                   rainbow();
+                   break;
+                case 1:
+                   spiral();
+                   break;
+                case 2:
+                default:
+                   scanner();
+                   break;
+            }
             delay(500);
             break;
         default:
