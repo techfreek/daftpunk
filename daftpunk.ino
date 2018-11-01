@@ -65,12 +65,12 @@ FACTORYRESET_ENABLE       Perform a factory reset when running this sketch
 #define UINT16_MAX              65535
 
 // other settings
-#define NUM_ANIMATIONS           3
+#define NUM_ANIMATIONS           4
 #define SPIRAL_SPEED            70
 #define SPIRAL_OFFSET           15
 #define SPIRAL_LOOPS             4
 #define SCANNER_SPEED           60
-#define TEXT_SPEED             150
+#define TEXT_SPEED             115
 #define EYE_SPEED              250
 
 // order of these matches the order returned through the app
@@ -213,7 +213,7 @@ void scanner() {
     matrix.show();
 }
 
-void spiral() {
+void spiral(bool clear) {
     int i = 0;
     int pos = 0;
     int color = 0;
@@ -230,7 +230,14 @@ void spiral() {
           last = true;
         }
 
+        if (last && clear) {
+            break;
+        }
+
         for(pos = 0; pos < hwidth; pos++) {
+          if (clear) {
+              matrix.fillScreen(OFF);
+          }
           color = (color + SPIRAL_OFFSET) % 255;
           matrix.drawLine(hwidth - pos, 0, hwidth + pos, HEIGHT, last ? OFF: Wheel(color));
           matrix.show();
@@ -238,6 +245,9 @@ void spiral() {
      }
 
       for(pos = hheight; pos >= -hheight; pos--) {
+          if (clear) {
+              matrix.fillScreen(OFF);
+          }
           color = (color + SPIRAL_OFFSET) % 255;
           matrix.drawLine(0, hheight - pos, WIDTH, hheight + pos, last ? OFF: Wheel(color));
           matrix.show();
@@ -245,6 +255,9 @@ void spiral() {
       }
 
       for(pos = 0; pos <= hwidth; pos++) {
+          if (clear) {
+              matrix.fillScreen(OFF);
+          }
           color = (color + SPIRAL_OFFSET) % 255;
           matrix.drawLine(pos, HEIGHT, WIDTH - pos, 0, last ? OFF: Wheel(color));
           matrix.show();
@@ -448,9 +461,12 @@ void loop() {
                    rainbow();
                    break;
                 case 1:
-                   spiral();
+                   spiral(false);
                    break;
                 case 2:
+                   spiral(true);
+                   break;
+                case 3:
                 default:
                    scanner();
                    break;
